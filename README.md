@@ -110,8 +110,8 @@ vam.destroy();             // Clean up
 |--------|------|---------|-------------|
 | `video` | HTMLVideoElement | required | Target video element |
 | `container` | HTMLElement | required | Container for the grid |
-| `columns` | number | 5 | Grid columns (3-10) |
-| `secondsPerCell` | number | 15 | Seconds per cell |
+| `columns` | number | 3 | Grid columns (3-10) |
+| `secondsPerCell` | number | 5 | Seconds per cell |
 | `cacheSize` | number | 200 | LRU cache size |
 | `onSeek` | function | null | Seek callback |
 

@@ -119,8 +119,8 @@ Your Video Site                    VAM Seek Library (Client-Side)
 |--------|------|---------|-------------|
 | `video` | HTMLVideoElement | required | Your video element |
 | `container` | HTMLElement | required | Container for the grid |
-| `columns` | number | 5 | Grid columns (3-10 recommended) |
-| `secondsPerCell` | number | 15 | Seconds each cell represents |
+| `columns` | number | 3 | Grid columns (3-10 recommended) |
+| `secondsPerCell` | number | 5 | Seconds each cell represents |
 | `thumbWidth` | number | 160 | Thumbnail width in pixels |
 | `thumbHeight` | number | 90 | Thumbnail height in pixels |
 | `cacheSize` | number | 200 | LRU cache size (frames) |
