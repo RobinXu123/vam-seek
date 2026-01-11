@@ -7,6 +7,8 @@
 
 [![Try Live Demo](https://img.shields.io/badge/🎬_Try_Live_Demo-Click_Here-ff6b6b?style=for-the-badge)](https://haasiy.main.jp/vam_web/deploy/lolipop/index.html)
 
+https://github.com/user-attachments/assets/378800ae-91e0-40c6-8e06-d3f3d2d1e717
+
 **A lightweight 2D video seek grid library for video streaming sites.**
 
 Navigate videos visually with a thumbnail grid instead of a 1D seek bar. Client-side frame extraction with smooth marker animation.
