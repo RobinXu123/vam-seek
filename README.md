@@ -1,7 +1,7 @@
 # VAM Seek - 2D Video Seek Marker
 
 [![License: Dual](https://img.shields.io/badge/License-Dual%20(Free%20%2F%20Commercial)-blue.svg)](LICENSE)
-[![Size](https://img.shields.io/badge/Size-~15KB-green.svg)](dist/vam-seek.js)
+[![Size](https://img.shields.io/badge/Size-~15KB%20(minified)-green.svg)](dist/vam-seek.js)
 [![No Dependencies](https://img.shields.io/badge/Dependencies-None-brightgreen.svg)](#)
 [![Browser](https://img.shields.io/badge/Works%20in-All%20Modern%20Browsers-orange.svg)](#)
 
@@ -52,6 +52,11 @@ That's it. See [docs/INTEGRATION.md](docs/INTEGRATION.md) for full documentation
 - **Smooth marker animation** - 60fps with requestAnimationFrame
 - **VAM algorithm** - Precise timestamp calculation
 - **Framework support** - React, Vue, vanilla JS examples included
+
+## 📰 Media Coverage
+
+- [VAM-Seek: Navegación Visual 2D para Videos sin Carga en Servidores](https://ecosistemastartup.com/vam-seek-navegacion-visual-2d-para-videos-sin-carga-en-servidores/) - Ecosistema Startup (Jan 2026)
+- [Show HN: VAM Seek – 2D video navigation grid, 15KB, zero server load](https://news.ycombinator.com/item?id=42663952) - Hacker News (Jan 2026)
 
 ## Privacy & Architecture
 

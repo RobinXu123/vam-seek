@@ -1639,30 +1639,33 @@
 
         function scrollToMarker() {
             const container = elements.gridContainer;
+            const markerTop = STATE.targetY;
             const viewportHeight = container.clientHeight;
+            const scrollTop = container.scrollTop;
 
-            if (STATE.cellHeight <= 0 || STATE.totalRows <= 0 || viewportHeight <= 0) {
+            if (STATE.cellHeight <= 0 || viewportHeight <= 0) {
                 return;
             }
 
-            // 現在の行を計算
-            const currentRow = Math.floor(STATE.targetY / STATE.cellHeight);
+            // 先読み用のマージン（10行分）
+            const marginRows = 10;
+            const topMargin = STATE.cellHeight * marginRows;
+            const bottomMargin = STATE.cellHeight * marginRows;
 
-            // ビューポートに表示可能な行数を計算
-            const visibleRows = viewportHeight / STATE.cellHeight;
-
-            // 行がビューポートの中央付近に来るようにスクロール
-            // オリジナルVAM準拠: target_row = max(0, row - visible_rows / 2)
-            const targetRow = Math.max(0, currentRow - visibleRows / 2);
-
-            // スクロール位置を計算
-            const targetScrollTop = targetRow * STATE.cellHeight;
-
-            // スムーズスクロール
-            container.scrollTo({
-                top: targetScrollTop,
-                behavior: 'smooth'
-            });
+            // マーカーが上端マージン内に入ったら上にスクロール
+            if (markerTop < scrollTop + topMargin) {
+                container.scrollTo({
+                    top: Math.max(0, markerTop - topMargin),
+                    behavior: 'smooth'
+                });
+            }
+            // マーカーが下端マージン内に入ったら下にスクロール
+            else if (markerTop > scrollTop + viewportHeight - bottomMargin) {
+                container.scrollTo({
+                    top: markerTop - viewportHeight + bottomMargin,
+                    behavior: 'smooth'
+                });
+            }
         }
 
         // ==================================================
@@ -1941,6 +1944,14 @@
             }
 
             // グリッドのマーカーを更新
+            // デバッグ: 条件チェック
+            if (STATE.totalCells <= 0 || STATE.cellWidth <= 0) {
+                console.log('handleVideoTimeUpdate SKIP:', {
+                    totalCells: STATE.totalCells,
+                    cellWidth: STATE.cellWidth,
+                    cellHeight: STATE.cellHeight
+                });
+            }
             if (STATE.totalCells > 0 && STATE.cellWidth > 0) {
                 // 再生位置からピクセル座標を計算（滑らかな連続移動）
                 const pos = calculateMarkerPositionFromTime(currentTime);
@@ -1957,6 +1968,12 @@
                 STATE.currentCellY = Math.min(currentRow, STATE.totalRows - 1);
                 STATE.currentRelX = positionInRow / CONFIG.columns;
                 STATE.currentRelY = (currentRow + 0.5) / STATE.totalRows;
+
+                // デバッグ: セル座標更新確認（1秒に1回だけ出力）
+                if (!STATE._lastCellDebug || Date.now() - STATE._lastCellDebug > 1000) {
+                    console.log('Cell update:', { cellX: STATE.currentCellX, cellY: STATE.currentCellY, currentTime });
+                    STATE._lastCellDebug = Date.now();
+                }
 
                 // スクロール（行が変わった時のみ）
                 const newRow = Math.floor(STATE.targetY / STATE.cellHeight);
