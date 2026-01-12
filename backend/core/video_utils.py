@@ -1,14 +1,30 @@
-"""動画・サムネイル処理ユーティリティ"""
+"""Video and thumbnail processing utilities"""
 import subprocess
 import json
 import os
 import math
-from typing import List
-from pathlib import Path
+import re
+from typing import List, Dict, Any
 
 
-def get_video_info(video_path: str) -> dict:
-    """FFprobeで動画情報を取得"""
+def _validate_path(path: str) -> str:
+    """Validate and sanitize file path to prevent command injection"""
+    if not path:
+        raise ValueError("Path cannot be empty")
+    # Check for shell metacharacters
+    if re.search(r'[;&|`$]', path):
+        raise ValueError("Invalid characters in path")
+    # Resolve to absolute path and check existence
+    abs_path = os.path.abspath(path)
+    return abs_path
+
+
+def get_video_info(video_path: str) -> Dict[str, Any]:
+    """Get video information using FFprobe"""
+    video_path = _validate_path(video_path)
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video file not found: {video_path}")
+
     try:
         cmd = [
             'ffprobe', '-v', 'quiet',
@@ -22,7 +38,7 @@ def get_video_info(video_path: str) -> dict:
 
         data = json.loads(result.stdout)
 
-        # 動画ストリームを探す
+        # Find video stream
         video_stream = None
         for stream in data.get('streams', []):
             if stream.get('codec_type') == 'video':
@@ -56,29 +72,32 @@ def generate_thumbnails(
     seconds_per_cell: float = 15.0,
     thumb_width: int = 160,
     thumb_height: int = 90
-) -> List[dict]:
-    """FFmpegでサムネイルを生成"""
+) -> List[Dict[str, Any]]:
+    """Generate thumbnails using FFmpeg"""
+    video_path = _validate_path(video_path)
+    output_dir = _validate_path(output_dir)
 
-    # 動画情報取得
+    # Get video information
     info = get_video_info(video_path)
     duration = info['duration']
 
     if duration <= 0:
-        raise Exception("Invalid video duration")
+        raise ValueError("Invalid video duration")
 
-    # グリッドサイズ計算
+    # Calculate grid size
     total_cells = math.ceil(duration / seconds_per_cell)
 
     thumbnails = []
 
     for i in range(total_cells):
-        timestamp = i * seconds_per_cell
+        # Extract thumbnail from center of cell (0.5 offset) for better visual representation
+        timestamp = (i + 0.5) * seconds_per_cell
         if timestamp >= duration:
             break
 
         output_file = os.path.join(output_dir, f"{video_id}_{i:04d}.jpg")
 
-        # FFmpegでサムネイル生成
+        # Generate thumbnail with FFmpeg
         cmd = [
             'ffmpeg', '-y',
             '-ss', str(timestamp),

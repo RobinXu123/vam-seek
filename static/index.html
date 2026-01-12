@@ -673,10 +673,10 @@
 
     <script>
         // ==================================================
-        // VAM Seek - 静的版デモ（サーバー不要）
+        // VAM Seek - Static Demo (No Server Required)
         // ==================================================
 
-        // 設定
+        // Configuration
         const CONFIG = {
             columns: 3,
             secondsPerCell: 5,
@@ -685,7 +685,7 @@
             videoDuration: 0
         };
 
-        // 状態
+        // State
         const STATE = {
             totalRows: 0,
             totalCells: 0,
@@ -709,7 +709,7 @@
             aborted: false
         };
 
-        // LRUキャッシュ
+        // LRU Cache
         class FrameCache {
             constructor(maxSize = 200) {
                 this.cache = new Map();
@@ -739,7 +739,7 @@
 
         const frameCache = new FrameCache(200);
 
-        // DOM要素
+        // DOM Elements
         const $ = id => document.getElementById(id);
         const elements = {
             uploadDropzone: $('uploadDropzone'),
@@ -769,7 +769,7 @@
         };
 
         // ==================================================
-        // グリッド計算（サーバーAPI不要 - クライアントで計算）
+        // Grid Calculation (Client-side, No Server API)
         // ==================================================
 
         function calculateGridConfig(videoDuration, columns, secondsPerCell) {
@@ -779,12 +779,12 @@
         }
 
         // ==================================================
-        // ファイル読み込み（サーバーアップロード不要）
+        // File Loading (No Server Upload Required)
         // ==================================================
 
         function handleFileSelect(file) {
             if (!file || !file.type.startsWith('video/')) {
-                alert('動画ファイルを選択してください');
+                alert('Please select a video file');
                 return;
             }
 
@@ -796,7 +796,7 @@
                 duration: 0
             };
 
-            // 動画の長さを取得
+            // Get video duration
             const tempVideo = document.createElement('video');
             tempVideo.src = url;
             tempVideo.addEventListener('loadedmetadata', () => {
@@ -808,18 +808,33 @@
         }
 
         function renderVideoList() {
-            elements.videoList.innerHTML = STATE.videos.map(v => `
-                <div class="video-item${STATE.currentVideoUrl === v.url ? ' selected' : ''}" data-id="${v.id}">
-                    <span class="video-item-icon">🎬</span>
-                    <div class="video-item-info">
-                        <div class="video-item-name">${v.name}</div>
-                        <div class="video-item-duration">${formatTime(v.duration)}</div>
-                    </div>
-                </div>
-            `).join('');
+            elements.videoList.innerHTML = '';
+            STATE.videos.forEach(v => {
+                const item = document.createElement('div');
+                item.className = 'video-item' + (STATE.currentVideoUrl === v.url ? ' selected' : '');
+                item.dataset.id = v.id;
 
-            elements.videoList.querySelectorAll('.video-item').forEach(el => {
-                el.addEventListener('click', () => selectVideo(el.dataset.id));
+                const icon = document.createElement('span');
+                icon.className = 'video-item-icon';
+                icon.textContent = '🎬';
+
+                const info = document.createElement('div');
+                info.className = 'video-item-info';
+
+                const name = document.createElement('div');
+                name.className = 'video-item-name';
+                name.textContent = v.name;
+
+                const duration = document.createElement('div');
+                duration.className = 'video-item-duration';
+                duration.textContent = formatTime(v.duration);
+
+                info.appendChild(name);
+                info.appendChild(duration);
+                item.appendChild(icon);
+                item.appendChild(info);
+                item.addEventListener('click', () => selectVideo(v.id));
+                elements.videoList.appendChild(item);
             });
         }
 
@@ -844,7 +859,7 @@
         }
 
         // ==================================================
-        // サムネイル生成（完全クライアント処理）
+        // Thumbnail Generation (Full Client-side Processing)
         // ==================================================
 
         async function generateThumbnails() {
@@ -905,7 +920,7 @@
         }
 
         // ==================================================
-        // フレーム抽出
+        // Frame Extraction
         // ==================================================
 
         async function extractAllFrames() {
@@ -924,7 +939,8 @@
                 for (let i = 0; i < STATE.totalCells; i++) {
                     if (STATE.aborted) break;
 
-                    const timestamp = i * CONFIG.secondsPerCell;
+                    // Extract thumbnail from center of cell (0.5 offset)
+                    const timestamp = (i + 0.5) * CONFIG.secondsPerCell;
                     const cell = elements.thumbnailGrid.children[i];
                     if (!cell) continue;
 
@@ -943,7 +959,7 @@
                     await new Promise(r => setTimeout(r, 5));
                 }
             } catch (e) {
-                console.error('Frame extraction error:', e);
+                // Frame extraction error - silently fail
             } finally {
                 STATE.isExtracting = false;
             }
@@ -969,10 +985,7 @@
 
                 video.addEventListener('loadeddata', onReady);
                 video.addEventListener('canplay', onReady);
-                video.addEventListener('error', (e) => {
-                    console.error('Video load error:', e);
-                    reject(e);
-                });
+                video.addEventListener('error', reject);
 
                 setTimeout(() => {
                     video.removeEventListener('loadeddata', onReady);
@@ -1048,7 +1061,7 @@
         }
 
         // ==================================================
-        // マーカー
+        // Marker
         // ==================================================
 
         function updateGridDimensions() {
@@ -1057,14 +1070,14 @@
             STATE.gridWidth = rect.width;
             STATE.gridHeight = rect.height;
 
-            // 実際のセルサイズを取得（gap考慮）
+            // Get actual cell size (accounting for gap)
             const firstCell = grid.querySelector('.grid-cell');
             if (firstCell) {
                 const cellRect = firstCell.getBoundingClientRect();
                 STATE.cellWidth = cellRect.width;
                 STATE.cellHeight = cellRect.height;
 
-                // gapを計算
+                // Calculate gap
                 const gridStyle = getComputedStyle(grid);
                 STATE.gridGap = parseFloat(gridStyle.gap) || 2;
             } else {
@@ -1140,11 +1153,11 @@
             const col = Math.floor(positionInRow);
             const colFraction = positionInRow - col;
 
-            // X位置: gap考慮
+            // X position (account for gap)
             const cellPlusGapX = STATE.cellWidth + gap;
             const x = col * cellPlusGapX + colFraction * STATE.cellWidth;
 
-            // Y位置: gap考慮、セル中央
+            // Y position (account for gap, cell center)
             const cellPlusGapY = STATE.cellHeight + gap;
             const y = row * cellPlusGapY + STATE.cellHeight / 2;
 
@@ -1155,26 +1168,22 @@
         }
 
         function calculateTimeFromPosition(x, y) {
-            // gap考慮
+            // Account for gap
             const gap = STATE.gridGap || 2;
             const cellPlusGap = STATE.cellHeight + gap;
 
-            // Y座標から行を計算
+            // Calculate row from Y
             const rowContinuous = y / cellPlusGap;
             const row = Math.max(0, Math.min(Math.floor(rowContinuous), STATE.totalRows - 1));
 
-            // 行内の位置を計算
-            const yInRow = y - row * cellPlusGap;
-            const rowFraction = Math.max(0, Math.min(yInRow / STATE.cellHeight, 1));
-
-            // X座標から列を計算（gap考慮）
+            // Calculate column from X (account for gap)
             const cellPlusGapX = STATE.cellWidth + gap;
             const colContinuous = x / cellPlusGapX;
             const col = Math.max(0, Math.min(Math.floor(colContinuous), CONFIG.columns - 1));
             const xInCol = x - col * cellPlusGapX;
             const colFraction = Math.max(0, Math.min(xInCol / STATE.cellWidth, 1));
 
-            // 連続セルインデックスを計算
+            // Calculate continuous cell index
             const continuousCellIndex = row * CONFIG.columns + col + colFraction;
             const timestamp = continuousCellIndex * CONFIG.secondsPerCell;
 
@@ -1220,7 +1229,7 @@
         }
 
         // ==================================================
-        // 表示更新
+        // Display Update
         // ==================================================
 
         function updateDisplay() {
@@ -1253,33 +1262,33 @@
         }
 
         // ==================================================
-        // イベント
+        // Events
         // ==================================================
 
         function setupEvents() {
-            // グリッドパネル折りたたみ
+            // Grid panel toggle
             elements.gridToggle.addEventListener('click', () => {
                 const isCollapsed = elements.gridPanel.classList.toggle('collapsed');
                 elements.gridToggle.textContent = isCollapsed ? '▲' : '▼';
-                // グリッドサイズを再計算
+                // Recalculate grid dimensions
                 if (!isCollapsed && STATE.currentVideoUrl) {
                     setTimeout(updateGridDimensions, 350);
                 }
             });
 
-            // 左パネル折りたたみ
+            // Left panel toggle
             elements.leftPanelToggle.addEventListener('click', () => {
                 const isCollapsed = elements.leftPanel.classList.toggle('collapsed');
                 elements.leftPanelToggle.textContent = isCollapsed ? '▶' : '◀';
             });
 
-            // ファイル選択
+            // File selection
             elements.uploadDropzone.addEventListener('click', () => elements.fileInput.click());
             elements.fileInput.addEventListener('change', e => {
                 if (e.target.files[0]) handleFileSelect(e.target.files[0]);
             });
 
-            // ドラッグ&ドロップ
+            // Drag and drop
             elements.uploadDropzone.addEventListener('dragover', e => {
                 e.preventDefault();
                 elements.uploadDropzone.classList.add('dragover');
@@ -1293,7 +1302,7 @@
                 if (e.dataTransfer.files[0]) handleFileSelect(e.dataTransfer.files[0]);
             });
 
-            // 再生コントロール
+            // Playback controls
             elements.playBtn.addEventListener('click', () => {
                 if (elements.videoPlayer.paused) {
                     elements.videoPlayer.play();
@@ -1304,7 +1313,7 @@
                 }
             });
 
-            // 動画イベント
+            // Video events
             let lastScrollTime = 0;
             elements.videoPlayer.addEventListener('timeupdate', () => {
                 if (!STATE.isDragging) {
@@ -1312,7 +1321,7 @@
                     moveMarkerTo(pos.x, pos.y, true);
                     updateDisplay();
 
-                    // マーカーに自動スクロール（500msごとにスロットリング）
+                    // Auto-scroll to marker (throttled to 500ms)
                     const now = Date.now();
                     if (now - lastScrollTime > 500) {
                         scrollToMarker();
@@ -1329,7 +1338,7 @@
                 elements.playBtn.textContent = '▶ 再生';
             });
 
-            // グリッド設定
+            // Grid settings
             elements.regenerateBtn.addEventListener('click', generateThumbnails);
             elements.columnsSelect.addEventListener('change', () => {
                 if (STATE.currentVideoUrl) generateThumbnails();
@@ -1338,7 +1347,7 @@
                 if (STATE.currentVideoUrl) generateThumbnails();
             });
 
-            // グリッド操作（マウス）
+            // Grid interaction (mouse)
             const grid = elements.thumbnailGrid;
 
             grid.addEventListener('mousedown', e => {
@@ -1358,7 +1367,7 @@
                 }
             });
 
-            // グリッド操作（タッチ）
+            // Grid interaction (touch)
             grid.addEventListener('touchstart', e => {
                 e.preventDefault();
                 STATE.isDragging = true;
@@ -1383,7 +1392,7 @@
 
             grid.addEventListener('click', handleGridClick);
 
-            // キーボード
+            // Keyboard
             document.addEventListener('keydown', e => {
                 if (!STATE.currentVideoUrl) return;
 
@@ -1460,7 +1469,7 @@
         }
 
         // ==================================================
-        // 初期化
+        // Initialize
         // ==================================================
 
         setupEvents();

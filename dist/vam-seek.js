@@ -222,11 +222,12 @@
             const cellIndex = row * this.columns + col;
             if (cellIndex >= this.state.totalCells) return;
 
-            const x = col * this.state.cellWidth;
-            const y = row * this.state.cellHeight;
+            // Position marker and playback at cell center for better UX
+            const x = (col + 0.5) * this.state.cellWidth;
+            const y = (row + 0.5) * this.state.cellHeight;
             this._moveMarkerTo(x, y, true);
 
-            const time = cellIndex * this.secondsPerCell;
+            const time = (cellIndex + 0.5) * this.secondsPerCell;
             this.seekTo(time);
         }
 
@@ -386,7 +387,7 @@
                     await new Promise(r => setTimeout(r, 5));
                 }
             } catch (e) {
-                console.error('VAMSeek: Frame extraction error', e);
+                // Frame extraction error - silently fail
             } finally {
                 this.state.isExtracting = false;
             }
@@ -452,7 +453,6 @@
                     height: canvas.height
                 };
             } catch (e) {
-                console.error('VAMSeek: Capture error', e);
                 return null;
             }
         }
