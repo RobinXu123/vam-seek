@@ -706,7 +706,10 @@
             currentVideoUrl: null,
             frameExtractorVideo: null,
             isExtracting: false,
-            aborted: false
+            aborted: false,
+            pendingMetadataHandler: null, // [2025-01-13] loadedmetadataハンドラーの参照を保持
+            isGenerating: false, // [2025-01-13] generateThumbnails()の二重実行防止フラグ
+            generationAborted: false // [2025-01-13] グリッド生成処理の中断フラグ
         };
 
         // LRU Cache (Video-aware)
@@ -934,7 +937,7 @@
             });
         }
 
-        // [2025-01-13] 動画切り替え時: 処理中断 + LRUキャッシュ更新
+        // [2025-01-13] 動画切り替え時: 処理中断 + LRUキャッシュ更新 + イベントリスナークリーンアップ
         function selectVideo(id) {
             const video = STATE.videos.find(v => v.id === id);
             if (!video) return;
@@ -944,8 +947,16 @@
 
             console.log(`[selectVideo] 動画切り替え: ${video.name}`);
 
-            // 進行中のフレーム抽出処理を中断
+            // 進行中の全ての処理を中断
             STATE.aborted = true;
+            STATE.generationAborted = true;
+
+            // 前回のloadedmetadataハンドラーを削除（重要！）
+            if (STATE.pendingMetadataHandler) {
+                elements.videoPlayer.removeEventListener('loadedmetadata', STATE.pendingMetadataHandler);
+                console.log('[selectVideo] 前回のloadedmetadataハンドラーを削除');
+                STATE.pendingMetadataHandler = null;
+            }
 
             // 新しい動画URLを設定
             STATE.currentVideoUrl = video.url;
@@ -961,11 +972,21 @@
             elements.regenerateBtn.disabled = false;
 
             // メタデータ読み込み完了後にサムネイル生成開始
-            elements.videoPlayer.addEventListener('loadedmetadata', () => {
-                CONFIG.videoDuration = elements.videoPlayer.duration;
-                elements.totalTime.textContent = formatTime(CONFIG.videoDuration);
-                generateThumbnails();
-            }, { once: true });
+            // ハンドラーの参照を保持（後で削除できるように）
+            const metadataHandler = () => {
+                // 動画が切り替わっていないか最終確認
+                if (STATE.currentVideoUrl === video.url) {
+                    CONFIG.videoDuration = elements.videoPlayer.duration;
+                    elements.totalTime.textContent = formatTime(CONFIG.videoDuration);
+                    generateThumbnails();
+                } else {
+                    console.log('[selectVideo] loadedmetadata: 動画が既に切り替わっているため無視');
+                }
+                STATE.pendingMetadataHandler = null;
+            };
+
+            STATE.pendingMetadataHandler = metadataHandler;
+            elements.videoPlayer.addEventListener('loadedmetadata', metadataHandler, { once: true });
 
             // 動画リストの選択状態を更新
             renderVideoList();
@@ -975,54 +996,107 @@
         // Thumbnail Generation (Full Client-side Processing)
         // ==================================================
 
-        // [2025-01-13] グリッド生成: 前回の処理を確実に中断してから開始
+        // [2025-01-13] グリッド生成: 二重実行防止 + 動画切り替え検知
         async function generateThumbnails() {
             if (!STATE.currentVideoUrl) return;
 
-            // 前回の処理を中断（あれば）
-            STATE.aborted = true;
-
-            // 処理が完全に停止するまで待機（isExtractingフラグが解放されるまで）
-            let waitCount = 0;
-            while (STATE.isExtracting && waitCount < 50) {
-                await new Promise(r => setTimeout(r, 10));
-                waitCount++;
+            // 【排他制御】既に実行中の場合は待機
+            if (STATE.isGenerating) {
+                console.log('[generateThumbnails] 既に実行中のため待機...');
+                let waitCount = 0;
+                while (STATE.isGenerating && waitCount < 100) {
+                    await new Promise(r => setTimeout(r, 10));
+                    waitCount++;
+                }
+                if (STATE.isGenerating) {
+                    console.warn('[generateThumbnails] タイムアウト: 前回の処理が終了しないため中止');
+                    return;
+                }
             }
 
-            // 強制的にフラグをリセット（念のため）
-            if (STATE.isExtracting) {
-                console.warn('[generateThumbnails] 強制的にisExtractingをリセット');
-                STATE.isExtracting = false;
+            // 【排他制御】フラグを立てる
+            STATE.isGenerating = true;
+            STATE.generationAborted = false;
+            const targetVideoUrl = STATE.currentVideoUrl; // 動画切り替え検知用
+
+            try {
+                console.log(`[generateThumbnails] グリッド生成開始: ${targetVideoUrl}`);
+
+                // フレーム抽出処理が残っていたら中断して待機
+                STATE.aborted = true;
+                let waitCount = 0;
+                while (STATE.isExtracting && waitCount < 50) {
+                    await new Promise(r => setTimeout(r, 10));
+                    waitCount++;
+                }
+
+                // 強制的にフラグをリセット（念のため）
+                if (STATE.isExtracting) {
+                    console.warn('[generateThumbnails] 強制的にisExtractingをリセット');
+                    STATE.isExtracting = false;
+                }
+
+                // 【動画切り替え検知】この時点で既に別の動画に切り替わっていたら中止
+                if (STATE.generationAborted || STATE.currentVideoUrl !== targetVideoUrl) {
+                    console.log('[generateThumbnails] 動画が切り替わったため中止');
+                    return;
+                }
+
+                // グリッド設定を取得
+                CONFIG.columns = parseInt(elements.columnsSelect.value);
+                CONFIG.secondsPerCell = parseInt(elements.intervalSelect.value);
+
+                showLoading('グリッド生成中...');
+
+                const config = calculateGridConfig(
+                    CONFIG.videoDuration,
+                    CONFIG.columns,
+                    CONFIG.secondsPerCell
+                );
+
+                STATE.totalRows = config.rows;
+                STATE.totalCells = config.totalCells;
+
+                elements.gridSizeDisplay.textContent = `${CONFIG.columns}×${STATE.totalRows}`;
+
+                // 【動画切り替え検知】グリッド設定計算後もチェック
+                if (STATE.generationAborted || STATE.currentVideoUrl !== targetVideoUrl) {
+                    console.log('[generateThumbnails] グリッド計算中に動画が切り替わったため中止');
+                    hideLoading();
+                    return;
+                }
+
+                // グリッドを再生成
+                renderGrid();
+                hideLoading();
+
+                // 【動画切り替え検知】グリッド描画後もチェック
+                if (STATE.generationAborted || STATE.currentVideoUrl !== targetVideoUrl) {
+                    console.log('[generateThumbnails] グリッド描画中に動画が切り替わったため中止');
+                    return;
+                }
+
+                // マーカー初期化とフレーム抽出開始
+                requestAnimationFrame(() => {
+                    // 【動画切り替え検知】最終チェック
+                    if (STATE.generationAborted || STATE.currentVideoUrl !== targetVideoUrl) {
+                        console.log('[generateThumbnails] フレーム抽出開始前に動画が切り替わったため中止');
+                        return;
+                    }
+
+                    updateGridDimensions();
+                    initializeMarker();
+                    elements.infoFooter.classList.add('visible');
+                    extractAllFrames();
+                });
+
+                console.log('[generateThumbnails] グリッド生成完了');
+
+            } finally {
+                // 【排他制御】必ずフラグを解放
+                STATE.isGenerating = false;
+                console.log('[generateThumbnails] isGeneratingフラグ解放');
             }
-
-            // グリッド設定を取得
-            CONFIG.columns = parseInt(elements.columnsSelect.value);
-            CONFIG.secondsPerCell = parseInt(elements.intervalSelect.value);
-
-            showLoading('グリッド生成中...');
-
-            const config = calculateGridConfig(
-                CONFIG.videoDuration,
-                CONFIG.columns,
-                CONFIG.secondsPerCell
-            );
-
-            STATE.totalRows = config.rows;
-            STATE.totalCells = config.totalCells;
-
-            elements.gridSizeDisplay.textContent = `${CONFIG.columns}×${STATE.totalRows}`;
-
-            // グリッドを再生成
-            renderGrid();
-            hideLoading();
-
-            // マーカー初期化とフレーム抽出開始
-            requestAnimationFrame(() => {
-                updateGridDimensions();
-                initializeMarker();
-                elements.infoFooter.classList.add('visible');
-                extractAllFrames();
-            });
         }
 
         function renderGrid() {
