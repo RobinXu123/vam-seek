@@ -1209,7 +1209,8 @@
             const y = row * STATE.cellHeight + row * gap + STATE.cellHeight / 2;  // Cell center Y
             moveMarkerTo(x, y, true);
 
-            const time = (row * CONFIG.columns + col) * CONFIG.secondsPerCell;
+            // Set time to cell center (add 0.5 cell) so marker stays centered after timeupdate
+            const time = (row * CONFIG.columns + col + 0.5) * CONFIG.secondsPerCell;
             elements.videoPlayer.currentTime = Math.min(time, CONFIG.videoDuration);
             updateDisplay();
             scrollToMarker();
