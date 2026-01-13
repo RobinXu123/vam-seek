@@ -570,6 +570,7 @@
             isDragging: false,
             isAnimating: false,
             animationId: null,
+            manualMarkerMove: false,  // キー操作後のtimeupdate自動更新をスキップ
             videos: [],
             currentVideoUrl: null,
             frameExtractorVideo: null,
@@ -1143,16 +1144,15 @@
             row = Math.max(0, Math.min(row, STATE.totalRows - 1));
 
             const positionInRow = continuousCellIndex - (row * CONFIG.columns);
-            const col = Math.floor(positionInRow);
-            const colFraction = positionInRow - col;
+            let col = Math.floor(positionInRow);
+            col = Math.max(0, Math.min(col, CONFIG.columns - 1));
+            const colFraction = Math.max(0, Math.min(positionInRow - col, 1));
 
-            // X position: account for gap between columns
-            const cellPlusGapX = STATE.cellWidth + gap;
-            const x = col * cellPlusGapX + colFraction * STATE.cellWidth;
+            // X position: col cells + col gaps (gap only between cells, not after last)
+            const x = col * STATE.cellWidth + col * gap + colFraction * STATE.cellWidth;
 
-            // Y position: account for gap between rows, center in cell
-            const cellPlusGapY = STATE.cellHeight + gap;
-            const y = row * cellPlusGapY + STATE.cellHeight / 2;
+            // Y position: row cells + row gaps, centered in cell
+            const y = row * STATE.cellHeight + row * gap + STATE.cellHeight / 2;
 
             return {
                 x: Math.max(0, Math.min(x, STATE.gridWidth)),
@@ -1163,11 +1163,13 @@
         function calculateTimeFromPosition(x, y) {
             // Account for gap between cells
             const gap = STATE.gridGap || 2;
-            const cellPlusGap = STATE.cellHeight + gap;
+            const cellPlusGapY = STATE.cellHeight + gap;
 
-            // Calculate row from Y (cell center corresponds to that timestamp)
-            const rowContinuous = y / cellPlusGap;
-            const row = Math.max(0, Math.min(Math.floor(rowContinuous), STATE.totalRows - 1));
+            // Calculate row from Y - subtract half cell height to account for center offset
+            // (calculateMarkerPositionFromTime uses: y = row * cellPlusGapY + cellHeight/2)
+            const yAdjusted = y - STATE.cellHeight / 2;
+            const rowContinuous = yAdjusted / cellPlusGapY;
+            const row = Math.max(0, Math.min(Math.floor(rowContinuous + 0.5), STATE.totalRows - 1));
 
             // Calculate column from X (account for gap)
             const cellPlusGapX = STATE.cellWidth + gap;
@@ -1198,18 +1200,24 @@
             STATE.currentCellX = col;
             STATE.currentCellY = row;
 
+            // Set manual move flag to prevent timeupdate from overriding position
+            STATE.manualMarkerMove = true;
+
             // Use same gap-aware calculation as calculateMarkerPositionFromTime
             const gap = STATE.gridGap || 2;
-            const cellPlusGapX = STATE.cellWidth + gap;
-            const cellPlusGapY = STATE.cellHeight + gap;
-            const x = col * cellPlusGapX;
-            const y = row * cellPlusGapY + STATE.cellHeight / 2;
+            const x = col * STATE.cellWidth + col * gap;
+            const y = row * STATE.cellHeight + row * gap + STATE.cellHeight / 2;
             moveMarkerTo(x, y, true);
 
             const time = (row * CONFIG.columns + col) * CONFIG.secondsPerCell;
             elements.videoPlayer.currentTime = Math.min(time, CONFIG.videoDuration);
             updateDisplay();
             scrollToMarker();
+
+            // Reset manual move flag after a short delay
+            setTimeout(() => {
+                STATE.manualMarkerMove = false;
+            }, 100);
         }
 
         function scrollToMarker() {
@@ -1313,6 +1321,11 @@
             // Video events
             let lastScrollTime = 0;
             elements.videoPlayer.addEventListener('timeupdate', () => {
+                // Skip auto-update during manual marker movement (keyboard navigation)
+                if (STATE.manualMarkerMove) {
+                    updateDisplay();
+                    return;
+                }
                 if (!STATE.isDragging) {
                     const pos = calculateMarkerPositionFromTime(elements.videoPlayer.currentTime);
                     moveMarkerTo(pos.x, pos.y, true);
@@ -1454,8 +1467,10 @@
                 });
             }
 
-            STATE.currentCellX = Math.floor(clampedX / STATE.cellWidth);
-            STATE.currentCellY = Math.floor(clampedY / STATE.cellHeight);
+            // Calculate cell indices with gap consideration
+            const gap = STATE.gridGap || 2;
+            STATE.currentCellX = Math.floor(clampedX / (STATE.cellWidth + gap));
+            STATE.currentCellY = Math.floor((clampedY - STATE.cellHeight / 2 + (STATE.cellHeight + gap) / 2) / (STATE.cellHeight + gap));
 
             updateDisplay();
         }
