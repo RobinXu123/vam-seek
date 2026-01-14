@@ -138,6 +138,7 @@
                 currentTaskId: 0,  // Task counter (always increments)
                 activeTaskId: null,  // Currently valid task ID (null = no active task)
                 currentVideoUrl: null,  // Current video URL (like demo's STATE.currentVideoUrl)
+                rebuildTimeoutId: null,  // Debounce for rebuild
                 lastScrollTime: 0,
                 scrollAnimationId: null
             };
@@ -252,6 +253,14 @@
             // Abort any ongoing extraction (like demo's generateThumbnails)
             this.state.activeTaskId = null;
 
+            // Immediately cleanup extractor video to prevent race conditions
+            if (this.state.extractorVideo) {
+                this.state.extractorVideo.pause();
+                this.state.extractorVideo.src = '';
+                this.state.extractorVideo.remove();
+                this.state.extractorVideo = null;
+            }
+
             // Store current video URL (like demo's STATE.currentVideoUrl)
             this.state.currentVideoUrl = this.video.src;
 
@@ -261,9 +270,15 @@
             // Reset scroll position to top
             this.container.scrollTop = 0;
 
+            // Debounce: cancel any pending rebuild
+            if (this.state.rebuildTimeoutId) {
+                cancelAnimationFrame(this.state.rebuildTimeoutId);
+            }
+
             // Update dimensions and start extraction in next frame
             // (like demo's requestAnimationFrame - ensures DOM is laid out)
-            requestAnimationFrame(() => {
+            this.state.rebuildTimeoutId = requestAnimationFrame(() => {
+                this.state.rebuildTimeoutId = null;
                 this._updateGridDimensions();
                 this._initMarker();
                 this.container.scrollTop = 0;
@@ -512,6 +527,9 @@
                         this._displayFrame(cell, cached);
                         continue;
                     }
+
+                    // Check extractorVideo still exists (may be cleaned up by rebuild)
+                    if (!this.state.extractorVideo || !isTaskValid()) break;
 
                     const frame = await this._extractFrame(this.state.extractorVideo, timestamp);
 
