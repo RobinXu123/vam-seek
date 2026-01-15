@@ -47,6 +47,25 @@ That's it. See [docs/INTEGRATION.md](docs/INTEGRATION.md) for full documentation
 
 Want a ready-to-use page without integration? Download [deploy/demo/index.html](deploy/demo/index.html) - a single HTML file with all features built-in. No library import needed.
 
+## API
+
+```javascript
+const vam = VAMSeek.init({
+  video: document.getElementById('video'),
+  container: document.getElementById('grid'),
+  columns: 5,
+  secondsPerCell: 15,
+  onSeek: (time, cell) => console.log(`Seeked to ${time}s`),
+  onError: (err) => console.error('Error:', err)
+});
+
+// Methods
+vam.seekTo(120);              // Seek to 2:00
+vam.moveToCell(2, 3);         // Move to column 2, row 3
+vam.configure({ columns: 8 }); // Update settings
+vam.destroy();                // Clean up
+```
+
 ## Features
 
 - Client-side frame extraction (Canvas API, no server)
@@ -66,25 +85,6 @@ All frame extraction happens client-side using the Canvas API. When the page clo
 | Server-side FFmpeg processing | Client-side Canvas API |
 | CDN bandwidth costs | Zero server cost |
 | Privacy risk | Fully private |
-
-## API
-
-```javascript
-const vam = VAMSeek.init({
-  video: document.getElementById('video'),
-  container: document.getElementById('grid'),
-  columns: 5,
-  secondsPerCell: 15,
-  onSeek: (time, cell) => console.log(`Seeked to ${time}s`),
-  onError: (err) => console.error('Error:', err)
-});
-
-// Methods
-vam.seekTo(120);              // Seek to 2:00
-vam.moveToCell(2, 3);         // Move to column 2, row 3
-vam.configure({ columns: 8 }); // Update settings
-vam.destroy();                // Clean up
-```
 
 ## Keyboard Shortcuts
 
