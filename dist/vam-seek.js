@@ -1,7 +1,7 @@
 /**
  * VAM Seek - 2D Video Seek Marker Library
  *
- * @version 1.2.0
+ * @version 1.2.1
  * @license MIT
  * @author VAM Project
  *
@@ -203,8 +203,8 @@
                 `;
             }
             this.marker.style.display = 'none';
-            this.container.style.position = 'relative';
-            this.container.appendChild(this.marker);
+            this.grid.style.position = 'relative';
+            this.grid.appendChild(this.marker);
         }
 
         _bindEvents() {
@@ -1023,7 +1023,7 @@
         /**
          * Library version
          */
-        version: '1.2.0'
+        version: '1.2.1'
     };
 
 })(typeof window !== 'undefined' ? window : this);
