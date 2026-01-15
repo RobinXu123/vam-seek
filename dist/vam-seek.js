@@ -1,7 +1,7 @@
 /**
  * VAM Seek - 2D Video Seek Marker Library
  *
- * @version 1.2.2
+ * @version 1.2.3
  * @license MIT
  * @author VAM Project
  *
@@ -528,6 +528,9 @@
 
                 if (!this.state.extractorVideo) return;
 
+                // Get cells (exclude marker element)
+                const cells = this.grid.querySelectorAll('.vam-cell');
+
                 for (let i = 0; i < this.state.totalCells; i++) {
                     // Check if task was cancelled (cache is preserved)
                     if (!isTaskValid()) {
@@ -536,7 +539,7 @@
 
                     // Extract thumbnail from center of cell (0.5 offset)
                     const timestamp = (i + 0.5) * this.secondsPerCell;
-                    const cell = this.grid.children[i];
+                    const cell = cells[i];
                     if (!cell) continue;
 
                     // Check cache
@@ -1026,7 +1029,7 @@
         /**
          * Library version
          */
-        version: '1.2.2'
+        version: '1.2.3'
     };
 
 })(typeof window !== 'undefined' ? window : this);
