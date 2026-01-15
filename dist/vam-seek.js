@@ -1,7 +1,7 @@
 /**
  * VAM Seek - 2D Video Seek Marker Library
  *
- * @version 1.1.2
+ * @version 1.2.0
  * @license MIT
  * @author VAM Project
  *
@@ -12,7 +12,8 @@
  *       video: document.getElementById('myVideo'),
  *       container: document.getElementById('gridContainer'),
  *       columns: 5,
- *       secondsPerCell: 15
+ *       secondsPerCell: 15,
+ *       onError: (err) => console.error('VAMSeek error:', err)
  *     });
  *   </script>
  */
@@ -114,6 +115,7 @@
             this.markerSvg = options.markerSvg || null;
             this.onSeek = options.onSeek || null;
             this.onCellClick = options.onCellClick || null;
+            this.onError = options.onError || null;  // Error callback
             this.autoScroll = options.autoScroll !== false; // Default: true
             this.scrollBehavior = options.scrollBehavior || 'center'; // 'center' or 'edge'
 
@@ -557,7 +559,10 @@
                     await new Promise(r => setTimeout(r, 5));
                 }
             } catch (e) {
-                // Frame extraction error - silently fail
+                // Frame extraction error - call onError callback if provided
+                if (this.onError) {
+                    this.onError({ type: 'extraction', error: e, message: 'Frame extraction failed' });
+                }
             }
         }
 
@@ -1018,7 +1023,7 @@
         /**
          * Library version
          */
-        version: '1.1.2'
+        version: '1.2.0'
     };
 
 })(typeof window !== 'undefined' ? window : this);
