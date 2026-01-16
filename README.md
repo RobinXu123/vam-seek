@@ -78,7 +78,23 @@ vam.destroy();                // Clean up
 
 **Your video never leaves the browser.**
 
+```mermaid
+graph LR
+    Video([Your Video]) --> VS[VAMSeek.init]
+    VS --> Grid[2D Thumbnail Grid]
+    VS --> Cache[(LRU Cache<br/>5 videos)]
+    Cache -.->|instant| Grid
+```
+
 All frame extraction happens client-side using the Canvas API. When the page closes, everything is gone. No data is ever sent to any server.
+
+```mermaid
+flowchart LR
+    Click[Seek] --> Hit{Cache?}
+    Hit -- Yes --> Show[Instant Display]
+    Hit -- No --> Extract[Extract Frame]
+    Extract --> Store[(Cache)] --> Show
+```
 
 | Traditional | VAM Seek |
 |-------------|----------|
