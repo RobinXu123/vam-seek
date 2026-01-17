@@ -160,10 +160,6 @@ For commercial licensing inquiries: haasiy@gmail.com
 - [Electron Desktop App](https://github.com/unhaya/vam-seek-electron-demo) - Full desktop video player with folder tree view
   - **Now with AI video analysis** - Ask Claude about your videos using the thumbnail grid. One image, one API call, full video context.
 
-## For AI Researchers
-
-- [VAM Protocol](https://github.com/unhaya/vam-seek-vision) - Hierarchical video navigation protocol for AI
-
 ## Credits
 
 Built and maintained by the creator of [VAM Desktop](https://github.com/unhaya/VAM-original).
