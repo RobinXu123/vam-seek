@@ -5,7 +5,6 @@
 **Client-side only. Zero server cost. Zero privacy risk.**
 
 [![License: Dual](https://img.shields.io/badge/License-Dual%20(Free%20%2F%20Commercial)-blue.svg)](LICENSE)
-[![Size](https://img.shields.io/badge/Size-~43KB-green.svg)](dist/vam-seek.js)
 [![No Dependencies](https://img.shields.io/badge/Dependencies-None-brightgreen.svg)](#)
 [![Browser](https://img.shields.io/badge/Works%20in-All%20Modern%20Browsers-orange.svg)](#)
 
@@ -21,7 +20,7 @@ https://github.com/user-attachments/assets/395ff2ec-0372-465c-9e42-500c138eb7aa
 |---------------------|----------|
 | 1D timeline, trial-and-error | 2D grid, instant visual navigation |
 | Server-generated thumbnails | Client-side canvas extraction |
-| Heavy infrastructure | Zero server load, ~43KB JS |
+| Heavy infrastructure | Zero server load, lightweight JS |
 | Complex integration | One-line setup |
 
 ## Quick Start
@@ -101,11 +100,11 @@ All frame extraction happens client-side using the Canvas API. When the page clo
 - Chrome 80+, Firefox 75+, Safari 14+, Edge 80+
 - Mobile browsers (iOS Safari, Chrome for Android)
 
-## The Evolution to 43KB
+## Design Philosophy
 
-Wait, didn't I say 15KB before? Yes, I did. As a developer, I was obsessed with that 15KB. But after seeing over 10,000 people access this tool, I realized that my mission wasn't just to make it "small," but to make it "indispensable."
+After seeing over 10,000 people access this tool, I realized that my mission wasn't just to make it "small," but to make it "indispensable."
 
-I chose to **trade those bytes for a significantly better user experience**:
+I chose to **trade bytes for a significantly better user experience**:
 
 ### Multi-Video LRU Cache
 VAM Seek now "remembers" thumbnail grids for up to 5 videos. Switch back to a video you've seen, and the grid appears instantly. No re-extraction, no waiting.
@@ -118,7 +117,9 @@ The marker movement uses refined easing for that 60fps "buttery smooth" feel.
 
 ---
 
-Even at 43KB, it remains **ultra-lightweight**. This is the balance between "minimal code" and "maximum experience."
+It remains **ultra-lightweight** with zero dependencies. This is the balance between "minimal code" and "maximum experience."
+
+[Test the library](https://haasiy.main.jp/vam_web/deploy/test/index.html) - Load your own video and try all features.
 
 ## License & Spirit
 
@@ -135,18 +136,13 @@ For commercial licensing inquiries: haasiy@gmail.com
 **Current: v1.3.5**
 
 ### v1.3.5 (2026-01-18)
-- Frame cache limit: max 500 frames per video (memory optimization)
-
-### v1.3.x (2026-01-18)
-- Multi-video LRU cache (5 videos)
+- Multi-video LRU cache (5 videos, max 500 frames each)
 - Mobile touch support
 - Auto-scroll modes (center/edge/off)
-- Added minified version: `vam-seek.min.js` (~20KB)
+- Minified version: `vam-seek.min.js`
 
 ### v1.0 (2026-01-10)
 - Initial release
-- Client-side frame extraction
-- 2D grid navigation
 
 ## Examples
 
