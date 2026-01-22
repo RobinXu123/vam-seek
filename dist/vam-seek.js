@@ -1,7 +1,7 @@
 /**
  * VAM Seek - 2D Video Seek Marker Library
  *
- * @version 1.3.0
+ * @version 1.3.5
  * @license MIT
  * @author VAM Project
  *
@@ -22,13 +22,15 @@
     'use strict';
 
     // ==========================================
-    // Multi-Video LRU Cache Manager (up to 5 videos, unlimited frames per video)
+    // Multi-Video LRU Cache Manager (up to 5 videos, max 500 frames per video)
     // ==========================================
     class MultiVideoCache {
-        constructor(maxVideos = 5) {
+        constructor(maxVideos = 5, maxFramesPerVideo = 500) {
             this.maxVideos = maxVideos;
+            this.maxFramesPerVideo = maxFramesPerVideo;
             this.videoOrder = []; // LRU order
             this.caches = new Map(); // videoSrc -> FrameCache (Map)
+            this.frameOrder = new Map(); // videoSrc -> Array of timestamp keys (LRU order)
         }
 
         _getOrCreateCache(videoSrc) {
@@ -46,8 +48,10 @@
                         }
                     }
                     this.caches.delete(oldest);
+                    this.frameOrder.delete(oldest);
                 }
                 this.caches.set(videoSrc, new Map());
+                this.frameOrder.set(videoSrc, []);
                 this.videoOrder.push(videoSrc);
             } else {
                 // Move to end (most recently used)
@@ -70,14 +74,33 @@
         put(videoSrc, timestamp, imageData) {
             const cache = this._getOrCreateCache(videoSrc);
             const key = timestamp.toFixed(2);
+            const order = this.frameOrder.get(videoSrc);
+
             if (cache.has(key)) {
                 // Revoke old blob URL before replacing
                 const old = cache.get(key);
                 if (old && old.blobUrl) {
                     URL.revokeObjectURL(old.blobUrl);
                 }
+                // Move key to end of order (most recently used)
+                const idx = order.indexOf(key);
+                if (idx !== -1) {
+                    order.splice(idx, 1);
+                }
+            } else {
+                // Evict oldest frames if at capacity
+                while (order.length >= this.maxFramesPerVideo) {
+                    const oldestKey = order.shift();
+                    const oldFrame = cache.get(oldestKey);
+                    if (oldFrame && oldFrame.blobUrl) {
+                        URL.revokeObjectURL(oldFrame.blobUrl);
+                    }
+                    cache.delete(oldestKey);
+                }
             }
+
             cache.set(key, imageData);
+            order.push(key);
         }
 
         hasVideo(videoSrc) {
@@ -98,6 +121,7 @@
                 }
             }
             this.caches.clear();
+            this.frameOrder.clear();
             this.videoOrder = [];
         }
 
@@ -155,6 +179,8 @@
                 markerY: 0,
                 targetX: 0,
                 targetY: 0,
+                currentCellX: 0,  // Current cell column (for keyboard navigation)
+                currentCellY: 0,  // Current cell row (for keyboard navigation)
                 isDragging: false,
                 isAnimating: false,
                 animationId: null,
@@ -233,41 +259,52 @@
         }
 
         _bindEvents() {
+            // Store bound event handlers for cleanup in destroy()
+            this._boundHandlers = {
+                onTimeUpdate: () => this._onTimeUpdateForScroll(),
+                onLoadedMetadata: () => this.rebuild(),
+                onMouseDown: (e) => this._onMouseDown(e),
+                onMouseMove: (e) => this._onMouseMove(e),
+                onMouseUp: () => this._onMouseUp(),
+                onTouchStart: (e) => {
+                    e.preventDefault();
+                    this.state.isDragging = true;
+                    this._handleMousePosition(e.touches[0]);
+                },
+                onTouchMove: (e) => {
+                    if (this.state.isDragging) {
+                        e.preventDefault();
+                        this._handleMousePosition(e.touches[0]);
+                    }
+                },
+                onTouchEnd: () => {
+                    if (this.state.isDragging) {
+                        this.state.isDragging = false;
+                        this._scrollToMarker();
+                    }
+                },
+                onKeyDown: (e) => this._onKeyDown(e)
+            };
+
             // Video time update - now only handles auto-scroll (v1.3.1)
-            this.video.addEventListener('timeupdate', () => this._onTimeUpdateForScroll());
-            this.video.addEventListener('loadedmetadata', () => this.rebuild());
+            this.video.addEventListener('timeupdate', this._boundHandlers.onTimeUpdate);
+            this.video.addEventListener('loadedmetadata', this._boundHandlers.onLoadedMetadata);
 
             // Independent position timer (16ms = ~60fps) - bypasses timeupdate irregularity (v1.3.1)
             this._startPositionTimer();
 
             // Grid interactions - Mouse
-            this.grid.addEventListener('mousedown', (e) => this._onMouseDown(e));
-            document.addEventListener('mousemove', (e) => this._onMouseMove(e));
-            document.addEventListener('mouseup', () => this._onMouseUp());
+            this.grid.addEventListener('mousedown', this._boundHandlers.onMouseDown);
+            document.addEventListener('mousemove', this._boundHandlers.onMouseMove);
+            document.addEventListener('mouseup', this._boundHandlers.onMouseUp);
 
             // Grid interactions - Touch (same as demo)
-            this.grid.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                this.state.isDragging = true;
-                this._handleMousePosition(e.touches[0]);
-            }, { passive: false });
-
-            this.grid.addEventListener('touchmove', (e) => {
-                if (this.state.isDragging) {
-                    e.preventDefault();
-                    this._handleMousePosition(e.touches[0]);
-                }
-            }, { passive: false });
-
-            this.grid.addEventListener('touchend', () => {
-                if (this.state.isDragging) {
-                    this.state.isDragging = false;
-                    this._scrollToMarker();
-                }
-            });
+            this.grid.addEventListener('touchstart', this._boundHandlers.onTouchStart, { passive: false });
+            this.grid.addEventListener('touchmove', this._boundHandlers.onTouchMove, { passive: false });
+            this.grid.addEventListener('touchend', this._boundHandlers.onTouchEnd);
 
             // Keyboard
-            document.addEventListener('keydown', (e) => this._onKeyDown(e));
+            document.addEventListener('keydown', this._boundHandlers.onKeyDown);
 
             // Resize observer - update grid dimensions when container size changes
             this.resizeObserver = new ResizeObserver(() => {
@@ -287,6 +324,19 @@
          */
         rebuild() {
             if (!this.video.duration) return;
+
+            // Cancel any ongoing scroll animation to prevent old grid's scroll affecting new grid
+            if (this.state.scrollAnimationId) {
+                cancelAnimationFrame(this.state.scrollAnimationId);
+                this.state.scrollAnimationId = null;
+            }
+
+            // Cancel any ongoing marker animation
+            if (this.state.animationId) {
+                cancelAnimationFrame(this.state.animationId);
+                this.state.animationId = null;
+                this.state.isAnimating = false;
+            }
 
             // Abort any ongoing extraction (like demo's generateThumbnails)
             this.state.activeTaskId = null;
@@ -371,6 +421,10 @@
                 col = lastIndex % this.columns;
             }
 
+            // Update internal cell state (for keyboard navigation)
+            this.state.currentCellX = col;
+            this.state.currentCellY = row;
+
             // Calculate cell center position (gap-aware, same as demo)
             const gap = this.state.gridGap || 2;
             const x = col * this.state.cellWidth + col * gap + this.state.cellWidth / 2;  // Cell center X
@@ -383,6 +437,28 @@
 
             // Auto-scroll to marker position
             this._scrollToMarker();
+        }
+
+        /**
+         * Set scroll behavior mode safely (cancels ongoing animations)
+         * @param {string} mode - 'center', 'edge', or 'off'
+         */
+        setScrollMode(mode) {
+            // Cancel any ongoing scroll animation to prevent position conflicts
+            if (this.state.scrollAnimationId) {
+                cancelAnimationFrame(this.state.scrollAnimationId);
+                this.state.scrollAnimationId = null;
+            }
+
+            // Reset scroll throttle timer to prevent immediate re-trigger
+            this.state.lastScrollTime = Date.now();
+
+            if (mode === 'off') {
+                this.autoScroll = false;
+            } else {
+                this.scrollBehavior = mode;
+                this.autoScroll = true;
+            }
         }
 
         /**
@@ -406,6 +482,18 @@
                 this.resizeObserver.disconnect();
                 this.resizeObserver = null;
             }
+
+            // Remove all event listeners (v1.3.4 - fix video switch oscillation)
+            if (this._boundHandlers) {
+                this.video.removeEventListener('timeupdate', this._boundHandlers.onTimeUpdate);
+                this.video.removeEventListener('loadedmetadata', this._boundHandlers.onLoadedMetadata);
+                document.removeEventListener('mousemove', this._boundHandlers.onMouseMove);
+                document.removeEventListener('mouseup', this._boundHandlers.onMouseUp);
+                document.removeEventListener('keydown', this._boundHandlers.onKeyDown);
+                // Grid event listeners are removed when grid is removed from DOM
+                this._boundHandlers = null;
+            }
+
             // Don't clear global cache on destroy
             this.grid.remove();
             this.marker.remove();
@@ -559,19 +647,33 @@
             const isTaskValid = () => this.state.activeTaskId === taskId && this.state.currentVideoUrl === targetVideoUrl;
 
             try {
-                // Cleanup previous extractor videos
-                this._cleanupExtractorVideos();
+                // Hold old extractor videos for delayed cleanup
+                const oldExtractorVideos = [...this.state.extractorVideos];
+                this.state.extractorVideos = [];
 
                 // Check if task was cancelled
                 if (!isTaskValid()) return;
 
-                // Create parallel extractor videos
+                // Create parallel extractor videos (before cleanup for faster start)
                 const extractorPromises = [];
                 for (let i = 0; i < this.parallelExtractors; i++) {
                     extractorPromises.push(this._createExtractorVideo(targetVideoUrl));
                 }
 
                 const extractorVideos = await Promise.all(extractorPromises);
+
+                // Delayed cleanup of old extractor videos (after new videos are created)
+                if (oldExtractorVideos.length > 0) {
+                    setTimeout(() => {
+                        for (const video of oldExtractorVideos) {
+                            if (video) {
+                                video.pause();
+                                video.src = '';
+                                video.remove();
+                            }
+                        }
+                    }, 0);
+                }
 
                 // Check if task was cancelled during video creation
                 if (!isTaskValid()) {
@@ -593,24 +695,35 @@
                 // Get cells (exclude marker element)
                 const cells = this.grid.querySelectorAll('.vam-cell');
 
-                // Distribute cells among parallel extractors
-                const numExtractors = this.state.extractorVideos.length;
-                const cellsPerExtractor = Math.ceil(this.state.totalCells / numExtractors);
+                // === VIEWPORT-FIRST EXTRACTION ===
+                // Phase 1: Extract visible cells first (user sees results immediately)
+                // Phase 2: Extract remaining cells in background
 
-                // Create extraction tasks for each extractor
-                const extractionTasks = this.state.extractorVideos.map((extractorVideo, extractorIndex) => {
-                    return this._extractFramesWithVideo(
-                        extractorVideo,
-                        extractorIndex,
-                        cellsPerExtractor,
+                const visibleIndices = this._getVisibleCellIndices();
+                const allIndices = Array.from({ length: this.state.totalCells }, (_, i) => i);
+                const remainingIndices = allIndices.filter(i => !visibleIndices.includes(i));
+
+                // Phase 1: Visible cells with all extractors
+                if (visibleIndices.length > 0 && isTaskValid()) {
+                    await this._extractCellsByIndices(
+                        this.state.extractorVideos,
+                        visibleIndices,
                         cells,
                         targetVideoUrl,
                         isTaskValid
                     );
-                });
+                }
 
-                // Run all extractors in parallel
-                await Promise.all(extractionTasks);
+                // Phase 2: Remaining cells in background
+                if (remainingIndices.length > 0 && isTaskValid()) {
+                    await this._extractCellsByIndices(
+                        this.state.extractorVideos,
+                        remainingIndices,
+                        cells,
+                        targetVideoUrl,
+                        isTaskValid
+                    );
+                }
 
             } catch (e) {
                 // Frame extraction error - call onError callback if provided
@@ -621,19 +734,61 @@
         }
 
         /**
-         * Extract frames using a single extractor video (for parallel processing)
+         * Get indices of cells currently visible in viewport
          */
-        async _extractFramesWithVideo(extractorVideo, extractorIndex, cellsPerExtractor, cells, targetVideoUrl, isTaskValid) {
-            const startIndex = extractorIndex * cellsPerExtractor;
-            const endIndex = Math.min(startIndex + cellsPerExtractor, this.state.totalCells);
+        _getVisibleCellIndices() {
+            const containerRect = this.container.getBoundingClientRect();
+            const scrollTop = this.container.scrollTop;
+            const viewportTop = scrollTop;
+            const viewportBottom = scrollTop + containerRect.height;
 
-            for (let i = startIndex; i < endIndex; i++) {
-                // Check if task was cancelled (cache is preserved)
-                if (!isTaskValid()) {
-                    break;
+            const cellHeight = this.state.cellHeight + (this.state.gridGap || 2);
+            const startRow = Math.floor(viewportTop / cellHeight);
+            const endRow = Math.ceil(viewportBottom / cellHeight);
+
+            const indices = [];
+            for (let row = startRow; row <= endRow && row < this.state.rows; row++) {
+                for (let col = 0; col < this.columns; col++) {
+                    const index = row * this.columns + col;
+                    if (index < this.state.totalCells) {
+                        indices.push(index);
+                    }
                 }
+            }
+            return indices;
+        }
 
-                // Extract thumbnail from center of cell (0.5 offset)
+        /**
+         * Extract specific cells by indices using parallel extractors
+         */
+        async _extractCellsByIndices(extractorVideos, indices, cells, targetVideoUrl, isTaskValid) {
+            const numExtractors = extractorVideos.length;
+            const indicesPerExtractor = Math.ceil(indices.length / numExtractors);
+
+            const tasks = extractorVideos.map((extractorVideo, extractorIndex) => {
+                const startIdx = extractorIndex * indicesPerExtractor;
+                const endIdx = Math.min(startIdx + indicesPerExtractor, indices.length);
+                const myIndices = indices.slice(startIdx, endIdx);
+
+                return this._extractFramesByIndices(
+                    extractorVideo,
+                    myIndices,
+                    cells,
+                    targetVideoUrl,
+                    isTaskValid
+                );
+            });
+
+            await Promise.all(tasks);
+        }
+
+        /**
+         * Extract frames for specific cell indices
+         */
+        async _extractFramesByIndices(extractorVideo, indices, cells, targetVideoUrl, isTaskValid) {
+            for (const i of indices) {
+                if (!isTaskValid()) break;
+
                 const timestamp = (i + 0.5) * this.secondsPerCell;
                 const cell = cells[i];
                 if (!cell) continue;
@@ -645,21 +800,16 @@
                     continue;
                 }
 
-                // Check extractorVideo still exists (may be cleaned up by rebuild)
                 if (!extractorVideo || !isTaskValid()) break;
 
                 const frame = await this._extractFrame(extractorVideo, timestamp);
 
-                // Check again after async operation
                 if (!isTaskValid()) break;
 
                 if (frame) {
                     this.frameCache.put(targetVideoUrl, timestamp, frame);
                     this._displayFrame(cell, frame);
                 }
-
-                // Small delay to prevent overwhelming the system
-                await new Promise(r => setTimeout(r, 5));
             }
         }
 
@@ -716,11 +866,9 @@
                     if (resolved) return;
                     resolved = true;
                     video.removeEventListener('seeked', onSeeked);
-                    // Wait for frame to render, then capture
-                    setTimeout(async () => {
-                        const frame = await this._captureFrame(video);
-                        resolve(frame);
-                    }, 50);
+                    // Capture immediately - frame is already rendered when seeked fires
+                    const frame = await this._captureFrame(video);
+                    resolve(frame);
                 };
 
                 video.addEventListener('seeked', onSeeked);
@@ -800,6 +948,9 @@
             this.state.markerY = this.state.cellHeight / 2;
             this.state.targetX = this.state.markerX;
             this.state.targetY = this.state.markerY;
+            // Initialize internal cell state
+            this.state.currentCellX = 0;
+            this.state.currentCellY = 0;
             this._updateMarkerPosition();
         }
 
@@ -853,18 +1004,20 @@
             if (!this.autoScroll) return;
 
             const viewportHeight = this.container.clientHeight;
+            // Use markerY (current animated position) for smooth scroll tracking
+            const markerY = this.state.markerY;
 
             if (this.scrollBehavior === 'edge') {
                 // Edge-trigger: only scroll when marker reaches screen edge
                 const scrollTop = this.container.scrollTop;
-                if (this.state.markerY < scrollTop + 50) {
-                    this._smoothScrollTo(Math.max(0, this.state.markerY - 100));
-                } else if (this.state.markerY > scrollTop + viewportHeight - 50) {
-                    this._smoothScrollTo(this.state.markerY - viewportHeight + 100);
+                if (markerY < scrollTop + 50) {
+                    this._smoothScrollTo(Math.max(0, markerY - 100));
+                } else if (markerY > scrollTop + viewportHeight - 50) {
+                    this._smoothScrollTo(markerY - viewportHeight + 100);
                 }
             } else {
                 // Center-following (default): marker stays at viewport center
-                const targetScroll = Math.max(0, this.state.markerY - viewportHeight / 2);
+                const targetScroll = Math.max(0, markerY - viewportHeight / 2);
                 this._smoothScrollTo(targetScroll);
             }
         }
@@ -986,6 +1139,12 @@
                 if (!this.video.paused && !this.state.isDragging && this.state.totalCells > 0) {
                     const pos = this._calculatePositionFromTime(this.video.currentTime);
                     this._moveMarkerTo(pos.x, pos.y, true);
+                    // Sync internal cell state during playback
+                    const gap = this.state.gridGap || 2;
+                    const cellPlusGapX = this.state.cellWidth + gap;
+                    const cellPlusGapY = this.state.cellHeight + gap;
+                    this.state.currentCellX = Math.max(0, Math.min(Math.floor(pos.x / cellPlusGapX), this.columns - 1));
+                    this.state.currentCellY = Math.max(0, Math.min(Math.floor(pos.y / cellPlusGapY), this.state.rows - 1));
                 }
             }, 16);
         }
@@ -1034,11 +1193,17 @@
                 this.state.isDragging = false;
                 // Snap marker Y position to cell center (keep X position as is)
                 const gap = this.state.gridGap || 2;
+                const cellPlusGapX = this.state.cellWidth + gap;
                 const cellPlusGapY = this.state.cellHeight + gap;
+                const xAdjusted = this.state.markerX - this.state.cellWidth / 2;
                 const yAdjusted = this.state.markerY - this.state.cellHeight / 2;
+                const col = Math.max(0, Math.min(Math.round(xAdjusted / cellPlusGapX), this.columns - 1));
                 const row = Math.max(0, Math.min(Math.round(yAdjusted / cellPlusGapY), this.state.rows - 1));
                 const snappedY = row * cellPlusGapY + this.state.cellHeight / 2;
                 this._moveMarkerTo(this.state.markerX, snappedY, true);
+                // Update internal cell state
+                this.state.currentCellX = col;
+                this.state.currentCellY = row;
                 this._scrollToMarker();
             }
         }
@@ -1065,9 +1230,9 @@
         _onKeyDown(e) {
             if (!this.video.duration) return;
 
-            const cell = this.getCurrentCell();
-            let col = cell.col;
-            let row = cell.row;
+            // Use internal state instead of getCurrentCell() to avoid video.currentTime sync issues
+            let col = this.state.currentCellX;
+            let row = this.state.currentCellY;
 
             switch (e.key) {
                 case 'ArrowLeft':
@@ -1169,7 +1334,7 @@
         /**
          * Library version
          */
-        version: '1.3.0'
+        version: '1.3.5'
     };
 
 })(typeof window !== 'undefined' ? window : this);

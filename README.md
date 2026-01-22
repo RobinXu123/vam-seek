@@ -5,7 +5,6 @@
 **Client-side only. Zero server cost. Zero privacy risk.**
 
 [![License: Dual](https://img.shields.io/badge/License-Dual%20(Free%20%2F%20Commercial)-blue.svg)](LICENSE)
-[![Size](https://img.shields.io/badge/Size-~43KB-green.svg)](dist/vam-seek.js)
 [![No Dependencies](https://img.shields.io/badge/Dependencies-None-brightgreen.svg)](#)
 [![Browser](https://img.shields.io/badge/Works%20in-All%20Modern%20Browsers-orange.svg)](#)
 
@@ -21,7 +20,7 @@ https://github.com/user-attachments/assets/395ff2ec-0372-465c-9e42-500c138eb7aa
 |---------------------|----------|
 | 1D timeline, trial-and-error | 2D grid, instant visual navigation |
 | Server-generated thumbnails | Client-side canvas extraction |
-| Heavy infrastructure | Zero server load, ~43KB JS |
+| Heavy infrastructure | Zero server load, lightweight JS |
 | Complex integration | One-line setup |
 
 ## Quick Start
@@ -69,7 +68,7 @@ vam.destroy();                // Clean up
 ## Features
 
 - Client-side frame extraction (Canvas API, no server)
-- Multi-video LRU cache (5 videos, unlimited frames)
+- Multi-video LRU cache (5 videos, max 500 frames each)
 - Blob URL thumbnails (memory efficient)
 - 60fps marker animation
 - No globals, multiple instances, clean destroy
@@ -101,14 +100,14 @@ All frame extraction happens client-side using the Canvas API. When the page clo
 - Chrome 80+, Firefox 75+, Safari 14+, Edge 80+
 - Mobile browsers (iOS Safari, Chrome for Android)
 
-## The Evolution to 43KB
+## Design Philosophy
 
-Wait, didn't I say 15KB before? Yes, I did. As a developer, I was obsessed with that 15KB. But after seeing over 10,000 people access this tool, I realized that my mission wasn't just to make it "small," but to make it "indispensable."
+After seeing over 10,000 people access this tool, I realized that my mission wasn't just to make it "small," but to make it "indispensable."
 
-I chose to **trade those bytes for a significantly better user experience**:
+I chose to **trade bytes for a significantly better user experience**:
 
 ### Multi-Video LRU Cache
-VAM Seek now "remembers" thumbnail grids for up to 3 videos. Switch back to a video you've seen, and the grid appears instantly. No re-extraction, no waiting.
+VAM Seek now "remembers" thumbnail grids for up to 5 videos. Switch back to a video you've seen, and the grid appears instantly. No re-extraction, no waiting.
 
 ### Reliability & Stability
 I've crushed several bugs discovered during the initial surge. The code now handles various video formats and edge cases gracefully.
@@ -118,7 +117,9 @@ The marker movement uses refined easing for that 60fps "buttery smooth" feel.
 
 ---
 
-Even at 43KB, it remains **ultra-lightweight**. This is the balance between "minimal code" and "maximum experience."
+It remains **ultra-lightweight** with zero dependencies. This is the balance between "minimal code" and "maximum experience."
+
+[Test the library](https://haasiy.main.jp/vam_web/deploy/test/index.html) - Load your own video and try all features.
 
 ## License & Spirit
 
@@ -130,35 +131,29 @@ Even at 43KB, it remains **ultra-lightweight**. This is the balance between "min
 
 For commercial licensing inquiries: haasiy@gmail.com
 
-## Development History
+## Changelog
 
-### 2026-01-16: v1.3.0
-- Expanded cache: 5 videos, unlimited frames per video
-- Blob URL thumbnails (reduced memory usage)
-- Canvas reuse for faster frame extraction
-- Parallel extraction support (`parallelExtractors` option)
+**Current: v1.3.5**
 
-### 2026-01-15: v1.2.x
-- Fixed race condition on settings change
-- Added test page - [Try it](https://haasiy.main.jp/vam_web/html/test.html)
+### v1.3.5 (2026-01-18)
+- Multi-video LRU cache (5 videos, max 500 frames each)
+- Mobile touch support
+- Auto-scroll modes (center/edge/off)
+- Minified version: `vam-seek.min.js`
 
-### 2026-01-13: Multi-Video Support
-- LRU cache for up to 3 videos
-- Per-video grid settings persistence
-
-### 2026-01-10: Initial Release
-- Client-side frame extraction
-- VAM algorithm for 2D timestamp calculation
+### v1.0 (2026-01-10)
+- Initial release
 
 ## Examples
 
-- [Electron Desktop App](https://github.com/unhaya/vam-seek-electron-demo) - Full desktop video player with folder tree view
+- [VAM Seek × AI](https://github.com/unhaya/vam-seek-ai) - Give AI "Eyes" with Vamseek. Chat with AI about your video. Ask "When does the red car appear?" and get the exact timestamp. The grid becomes AI's eyes. *Experimental*
 
 ## Credits
 
-Built and maintained by the creator of [VAM Desktop](https://github.com/unhaya/VAM-original).
+Evolved from [VAM Desktop](https://github.com/unhaya/VAM-original).
 
 ## Media Coverage
 
+- [科技爱好者周刊（第 381 期）](https://www.ruanyifeng.com/blog/2026/01/weekly-issue-381.html) - Ruan YiFeng's Blog (China)
 - [VAM Seek: 2D Visual Navigation for Videos Without Server Load](https://ecosistemastartup.com/vam-seek-navegacion-visual-2d-para-videos-sin-carga-en-servidores/) - Ecosistema Startup
 - [VAM Seek: Lightweight 2D Video Navigation Without Server Load](https://pulse-scope.ovidgame.com/2026-01-11-13-14/vam-seek-lightweight-2d-video-navigation-without-server-load) - Pulse Scope

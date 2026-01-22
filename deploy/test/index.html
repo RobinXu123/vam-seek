@@ -82,7 +82,7 @@
     </style>
 </head>
 <body>
-    <h1>VAM Seek Library Test (v1.2.3)</h1>
+    <h1>VAM Seek Library Test</h1>
     <p style="text-align: center; color: #888; margin-bottom: 20px; font-size: 14px;">
         This page uses the actual <code style="background: #1a1a2e; padding: 2px 6px; border-radius: 4px;">vam-seek.js</code> library.<br>
         Select a video file, then drag the marker or click on the grid to seek.
@@ -125,6 +125,7 @@
                     <select id="scrollBehaviorSelect">
                         <option value="center" selected>Center-following</option>
                         <option value="edge">Edge-trigger</option>
+                        <option value="off">OFF</option>
                     </select>
                 </label>
             </div>
@@ -159,6 +160,37 @@
         const cacheInfo = document.getElementById('cacheInfo');
 
         let vamInstance = null;
+
+        // Settings persistence
+        const STORAGE_KEY = 'vamSeekTestSettings';
+        const defaultSettings = {
+            columns: 3,
+            secondsPerCell: 15,
+            scrollBehavior: 'center'
+        };
+
+        function loadSettings() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+            } catch (e) {
+                return defaultSettings;
+            }
+        }
+
+        function saveSettings(settings) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+            } catch (e) {
+                console.warn('Failed to save settings:', e);
+            }
+        }
+
+        // Load and apply saved settings
+        const settings = loadSettings();
+        columnsSelect.value = settings.columns;
+        intervalSelect.value = settings.secondsPerCell;
+        scrollBehaviorSelect.value = settings.scrollBehavior;
 
         // File selection
         fileInput.addEventListener('change', (e) => {
@@ -214,27 +246,29 @@
             cellInfo.textContent = `Cell: (${cell.col}, ${cell.row})`;
         });
 
-        // Settings change
+        // Settings change (with persistence)
         columnsSelect.addEventListener('change', () => {
+            settings.columns = parseInt(columnsSelect.value);
+            saveSettings(settings);
             if (vamInstance) {
-                vamInstance.configure({
-                    columns: parseInt(columnsSelect.value)
-                });
+                vamInstance.configure({ columns: settings.columns });
             }
         });
 
         intervalSelect.addEventListener('change', () => {
+            settings.secondsPerCell = parseInt(intervalSelect.value);
+            saveSettings(settings);
             if (vamInstance) {
-                vamInstance.configure({
-                    secondsPerCell: parseInt(intervalSelect.value)
-                });
+                vamInstance.configure({ secondsPerCell: settings.secondsPerCell });
             }
         });
 
         scrollBehaviorSelect.addEventListener('change', () => {
+            settings.scrollBehavior = scrollBehaviorSelect.value;
+            saveSettings(settings);
             if (vamInstance) {
-                vamInstance.scrollBehavior = scrollBehaviorSelect.value;
-                statusText.textContent = `Scroll: ${scrollBehaviorSelect.value}`;
+                vamInstance.setScrollMode(settings.scrollBehavior);
+                statusText.textContent = `Scroll: ${settings.scrollBehavior}`;
             }
         });
 

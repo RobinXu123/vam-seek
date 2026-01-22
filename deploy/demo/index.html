@@ -157,6 +157,7 @@
             height: 100%;
             object-fit: contain;
             display: none;
+            touch-action: manipulation;
         }
 
         #videoPlayer.visible { display: block; }
@@ -200,12 +201,6 @@
             padding: 8px 4px;
         }
 
-        .grid-panel.collapsed .grid-title {
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            margin-top: 8px;
-        }
-
         .grid-header {
             padding: 8px 12px;
             background: var(--bg-tertiary);
@@ -247,6 +242,7 @@
             font-size: 12px;
             border-radius: 3px;
             cursor: pointer;
+            outline: none;
         }
 
         .grid-container {
@@ -327,32 +323,6 @@
             width: 100%;
             height: 100%;
         }
-
-        /* Info Footer (fixed at bottom of grid panel) */
-        .info-footer {
-            flex: 0 0 auto;
-            background: var(--bg-tertiary);
-            border-top: 1px solid var(--border-color);
-            padding: 8px 12px;
-            font-size: 12px;
-            font-family: 'Consolas', monospace;
-            display: none;
-        }
-
-        .info-footer.visible {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .info-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .info-label { color: var(--text-dim); }
-        .info-value { color: var(--highlight); font-weight: bold; }
 
         /* Loading */
         .loading-overlay {
@@ -455,9 +425,8 @@
         <div class="grid-panel" id="gridPanel">
             <div class="grid-header">
                 <button type="button" class="grid-toggle" id="gridToggle" title="Toggle Grid Panel" tabindex="-1">◀</button>
-                <span class="grid-title">Thumbnail Grid</span>
                 <div class="grid-settings">
-                    <span class="grid-label">Cols:</span>
+                    <span class="grid-label">Col</span>
                     <select class="grid-select" id="columnsSelect" tabindex="-1">
                         <option value="3" selected>3</option>
                         <option value="4">4</option>
@@ -465,15 +434,20 @@
                         <option value="6">6</option>
                         <option value="8">8</option>
                     </select>
-                    <span class="grid-label">Sec/Cell:</span>
+                    <span class="grid-label">Sec</span>
                     <select class="grid-select" id="intervalSelect" tabindex="-1">
-                        <option value="5">5s</option>
-                        <option value="10" selected>10s</option>
-                        <option value="15">15s</option>
-                        <option value="30">30s</option>
-                        <option value="60">1m</option>
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="15">15</option>
+                        <option value="30">30</option>
+                        <option value="60">60</option>
                     </select>
-                    <button type="button" class="btn btn-primary" id="regenerateBtn" disabled tabindex="-1">Generate</button>
+                    <span class="grid-label">Scroll</span>
+                    <select class="grid-select" id="scrollSelect" tabindex="-1">
+                        <option value="center" selected>Center</option>
+                        <option value="edge">Edge</option>
+                        <option value="off">OFF</option>
+                    </select>
                 </div>
             </div>
             <div class="grid-container" id="gridContainer">
@@ -489,16 +463,6 @@
                 <div class="loading-overlay" id="loadingOverlay">
                     <div class="spinner"></div>
                     <div id="loadingText">Extracting frames...</div>
-                </div>
-            </div>
-            <div class="info-footer" id="infoFooter">
-                <div class="info-item">
-                    <span class="info-label">Time:</span>
-                    <span class="info-value" id="overlayTime">00:00.00</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Cell:</span>
-                    <span class="info-value" id="overlayCell">(0, 0)</span>
                 </div>
             </div>
         </div>
@@ -625,13 +589,10 @@
             playerPlaceholder: $('playerPlaceholder'),
             columnsSelect: $('columnsSelect'),
             intervalSelect: $('intervalSelect'),
-            regenerateBtn: $('regenerateBtn'),
+            scrollSelect: $('scrollSelect'),
             gridContainer: $('gridContainer'),
             thumbnailGrid: $('thumbnailGrid'),
             svgMarker: $('svgMarker'),
-            infoFooter: $('infoFooter'),
-            overlayTime: $('overlayTime'),
-            overlayCell: $('overlayCell'),
             loadingOverlay: $('loadingOverlay'),
             loadingText: $('loadingText'),
             gridPanel: $('gridPanel'),
@@ -744,7 +705,6 @@
             elements.videoPlayer.load();
             elements.videoPlayer.classList.add('visible');
             elements.playerPlaceholder.style.display = 'none';
-            elements.regenerateBtn.disabled = false;
 
             // [2025-01-13] 動画切り替え時にグリッドのスクロール位置を先頭にリセット
             elements.gridContainer.scrollTop = 0;
@@ -800,7 +760,6 @@
             requestAnimationFrame(() => {
                 updateGridDimensions();
                 initializeMarker();
-                elements.infoFooter.classList.add('visible');
                 // [2025-01-13] requestAnimationFrame後も確実にスクロール位置をリセット
                 elements.gridContainer.scrollTop = 0;
                 extractAllFrames();
@@ -847,18 +806,24 @@
             const isTaskValid = () => STATE.activeTaskId === taskId && STATE.currentVideoUrl === targetVideoUrl;
 
             try {
-                // 前の動画要素をクリーンアップ
-                if (STATE.frameExtractorVideo) {
-                    STATE.frameExtractorVideo.pause();
-                    STATE.frameExtractorVideo.src = '';
-                    STATE.frameExtractorVideo.remove();
-                    STATE.frameExtractorVideo = null;
-                }
+                // 古いExtractorVideoを保持（後でクリーンアップ）
+                const oldExtractorVideo = STATE.frameExtractorVideo;
+                STATE.frameExtractorVideo = null;
 
                 // タスク中断チェック
                 if (!isTaskValid()) return;
 
+                // 新しいExtractorVideoを先に作成（クリーンアップより優先）
                 STATE.frameExtractorVideo = await createExtractorVideo(targetVideoUrl);
+
+                // 古いExtractorVideoを遅延クリーンアップ（新しいビデオ作成後）
+                if (oldExtractorVideo) {
+                    setTimeout(() => {
+                        oldExtractorVideo.pause();
+                        oldExtractorVideo.src = '';
+                        oldExtractorVideo.remove();
+                    }, 0);
+                }
 
                 // 動画ロード後に再度チェック
                 if (!isTaskValid() || !STATE.frameExtractorVideo) {
@@ -1175,7 +1140,6 @@
             // Set time to cell center (add 0.5 cell) so marker stays centered after timeupdate
             const time = (row * CONFIG.columns + col + 0.5) * CONFIG.secondsPerCell;
             elements.videoPlayer.currentTime = Math.min(time, CONFIG.videoDuration);
-            updateDisplay();
             scrollToMarker();
 
             // Reset manual move flag after a short delay
@@ -1188,9 +1152,36 @@
         let scrollAnimationId = null;
 
         function scrollToMarker() {
+            const scrollMode = elements.scrollSelect.value;
+
+            // OFF mode: no auto-scroll
+            if (scrollMode === 'off') return;
+
             const container = elements.gridContainer;
             const viewportHeight = container.clientHeight;
-            const targetScroll = Math.max(0, STATE.markerY - viewportHeight / 2);
+            let targetScroll;
+
+            if (scrollMode === 'edge') {
+                // Edge mode: only scroll when marker reaches screen edge
+                const currentScroll = container.scrollTop;
+                const markerInView = STATE.markerY - currentScroll;
+                const margin = STATE.cellHeight || 50;
+
+                if (markerInView < margin) {
+                    // Marker above viewport - scroll up
+                    targetScroll = Math.max(0, STATE.markerY - margin);
+                } else if (markerInView > viewportHeight - margin) {
+                    // Marker below viewport - scroll down
+                    targetScroll = STATE.markerY - viewportHeight + margin;
+                } else {
+                    // Marker is within viewport - no scroll
+                    return;
+                }
+            } else {
+                // Center mode (default): marker stays at viewport center
+                targetScroll = Math.max(0, STATE.markerY - viewportHeight / 2);
+            }
+
             const start = container.scrollTop;
             const distance = targetScroll - start;
 
@@ -1222,16 +1213,6 @@
             }
 
             scrollAnimationId = requestAnimationFrame(animate);
-        }
-
-        // ==================================================
-        // Display Update
-        // ==================================================
-
-        function updateDisplay() {
-            const time = elements.videoPlayer.currentTime;
-            elements.overlayTime.textContent = formatTime(time);
-            elements.overlayCell.textContent = `(${STATE.currentCellX}, ${STATE.currentCellY})`;
         }
 
         function formatTime(seconds) {
@@ -1309,7 +1290,6 @@
                     if (!elements.videoPlayer.paused && !STATE.isDragging && !STATE.manualMarkerMove && STATE.totalCells > 0) {
                         const pos = calculateMarkerPositionFromTime(elements.videoPlayer.currentTime);
                         moveMarkerTo(pos.x, pos.y, true);
-                        updateDisplay();
                     }
                 }, 16);
             }
@@ -1332,7 +1312,6 @@
             });
 
             // Grid settings
-            elements.regenerateBtn.addEventListener('click', generateThumbnails);
             elements.columnsSelect.addEventListener('change', () => {
                 if (STATE.currentVideoUrl) generateThumbnails();
             });
@@ -1343,31 +1322,33 @@
             // Grid interaction
             const grid = elements.thumbnailGrid;
 
-            // Mouse events
+            // Mouse events - only handle events that start from the grid
             grid.addEventListener('mousedown', e => {
                 e.preventDefault();
                 STATE.isDragging = true;
                 handleGridClick(e);
             });
 
+            // Use document-level listeners but check if drag started from grid
             document.addEventListener('mousemove', e => {
                 if (STATE.isDragging) handleGridClick(e);
             });
 
-            document.addEventListener('mouseup', () => {
+            document.addEventListener('mouseup', e => {
                 if (STATE.isDragging) {
                     STATE.isDragging = false;
                     scrollToMarker();
                 }
             });
 
-            grid.addEventListener('click', handleGridClick);
-
-            // Touch events for mobile
+            // Touch events for mobile - only on grid element
             grid.addEventListener('touchstart', e => {
-                e.preventDefault();
-                STATE.isDragging = true;
-                handleGridClick(e.touches[0]);
+                // Only handle if touch started on grid (not video controls)
+                if (e.target.closest('.grid-cell') || e.target === grid || e.target.closest('#svgMarker')) {
+                    e.preventDefault();
+                    STATE.isDragging = true;
+                    handleGridClick(e.touches[0]);
+                }
             }, { passive: false });
 
             grid.addEventListener('touchmove', e => {
@@ -1474,8 +1455,6 @@
             const gap = STATE.gridGap || 2;
             STATE.currentCellX = Math.floor(clampedX / (STATE.cellWidth + gap));
             STATE.currentCellY = Math.floor((clampedY - STATE.cellHeight / 2 + (STATE.cellHeight + gap) / 2) / (STATE.cellHeight + gap));
-
-            updateDisplay();
         }
 
         // ==================================================
