@@ -146,7 +146,26 @@ For commercial licensing inquiries: haasiy@gmail.com
 
 ## Examples
 
-- [VAM Seek × AI](https://github.com/unhaya/vam-seek-ai) - Give AI "Eyes" with Vamseek. Chat with AI about your video. Ask "When does the red car appear?" and get the exact timestamp. The grid becomes AI's eyes. *Experimental*
+- [VAM Seek × AI](https://github.com/unhaya/vam-seek-ai) - Give AI "Eyes" with VAM Seek. Chat with AI about your video. Ask "When does the red car appear?" and get the exact timestamp. The grid becomes AI's eyes.
+
+## VAM-RGB: Temporal Encoding for AI
+
+VAM-RGB packs 3 moments into a single image:
+
+![VAM-RGB Sample](docs/vam-rgb-sample.jpg)
+
+| Channel | Time | Meaning |
+|---------|------|---------|
+| R (Red) | T-0.5s | Past |
+| G (Green) | T0 | Present |
+| B (Blue) | T+0.5s | Future |
+
+Motion appears as chromatic aberration. Static objects remain grayscale. Moving objects show RGB separation proportional to speed and direction.
+
+AI perceives temporal flow from a single image—no video streaming required.
+
+- [VAM Seek AI](https://github.com/unhaya/vam-seek-ai) - Implementation
+- [VAM-RGB Defensive Publication (Zenodo)](https://zenodo.org/records/18338870) - Technical specification
 
 ## Credits
 
