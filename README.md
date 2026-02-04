@@ -1,5 +1,9 @@
 # VAM Seek - 2D Video Seek Marker
 
+**Visual Array Matrix Seeker** — A JavaScript library for 2D video navigation.
+
+**Author:** Susumu Takahashi ([unhaya](https://github.com/unhaya) / [haasiy](https://github.com/haasiy))
+
 **A 2D visual seek grid for videos.**
 **Navigate any video by scenes, not timestamps.**
 **Client-side only. Zero server cost. Zero privacy risk.**
@@ -119,7 +123,7 @@ The marker movement uses refined easing for that 60fps "buttery smooth" feel.
 
 It remains **ultra-lightweight** with zero dependencies. This is the balance between "minimal code" and "maximum experience."
 
-[Test the library](https://haasiy.main.jp/vam_web/deploy/test/index.html) - Load your own video and try all features.
+[Test the library](https://haasiy.main.jp/vam_web/html/test.html) - Load your own video and try all features.
 
 ## License & Spirit
 
@@ -164,7 +168,7 @@ Motion appears as chromatic aberration. Static objects remain grayscale. Moving 
 
 AI perceives temporal flow from a single image—no video streaming required.
 
-- [VAM Seek AI](https://github.com/unhaya/vam-seek-ai) - Implementation
+- [VAM Seek AI](https://github.com/unhaya/vam-seek-ai) - The Evolution
 - [VAM-RGB Defensive Publication (Zenodo)](https://zenodo.org/records/18338870) - Technical specification
 
 ## Credits
